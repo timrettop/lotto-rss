@@ -25,6 +25,13 @@ import pytz
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+class _SuppressHealthChecks(logging.Filter):
+    """Drop successful GET /health log lines from Werkzeug's access log."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not ('"GET /health' in record.getMessage() and '" 200 ' in record.getMessage())
+
+logging.getLogger("werkzeug").addFilter(_SuppressHealthChecks())
+
 # ── Config ────────────────────────────────────────────────────────────────────
 RAPIDAPI_KEY  = os.environ.get("RAPIDAPI_KEY", "")
 RAPIDAPI_HOST = "usa-lottery-result-all-state-api.p.rapidapi.com"
@@ -622,13 +629,16 @@ def start_scheduler():
     log.info(f"Scheduler started — lottery fetch at 7:15 AM CT, serving on port {PORT}")
 
 
+# ── Startup ───────────────────────────────────────────────────────────────────
+# Runs at import time so both Gunicorn and direct `python app.py` trigger it.
+start_scheduler()
+if not JACKPOT_CACHE.exists():
+    log.info("No lottery cache found — running initial fetch on startup")
+    run_scheduled_fetch()
+if NEWS_FEED_URL and not NEWS_CACHE.exists():
+    log.info("No news cache found — fetching news feed on startup")
+    fetch_news_feed()
+
 if __name__ == "__main__":
-    start_scheduler()
-    # Seed caches on startup if empty
-    if not JACKPOT_CACHE.exists():
-        log.info("No lottery cache found — running initial fetch on startup")
-        run_scheduled_fetch()
-    if NEWS_FEED_URL and not NEWS_CACHE.exists():
-        log.info("No news cache found — fetching news feed on startup")
-        fetch_news_feed()
+    # Dev only — Gunicorn does not use this block
     app.run(host="0.0.0.0", port=PORT, debug=False)

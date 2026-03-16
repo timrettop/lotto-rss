@@ -1,0 +1,51 @@
+services:
+  lottery-rss:
+    build: .
+    container_name: lottery-rss
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8585}:${PORT:-8585}"
+    volumes:
+      - ./data:/app/data        # Persists jackpot cache + ticket records across restarts
+    healthcheck:
+        test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8585/health')"]
+        interval: 60s
+        timeout: 10s
+        retries: 3
+        start_period: 15s
+    environment:
+      # ── Required ──────────────────────────────────────────────
+      - PORT=8585
+      - RAPIDAPI_KEY=$RAPIDAPI_KEY
+      
+      # ── Email / Ticket Tracking (optional but recommended) ────
+      # Use a dedicated Gmail address that you forward confirmations to.
+      # Requires a Gmail App Password (not your regular password):
+      # https://myaccount.google.com/apppasswords
+      - IMAP_HOST=imap.gmail.com
+      - IMAP_PORT=993
+      - IMAP_USER=$IMAP_USER
+      - IMAP_PASS=$IMAP_PASS
+      - IMAP_FOLDER=INBOX
+
+      # ── News Feed (optional) ──────────────────────────────────
+      # Leave NEWS_FEED_URL blank to disable. Any valid RSS URL works.
+      # Examples:
+      #   AP (via RSSHub):  https://rsshub.app/apnews/topics/ap-top-news
+      #   Reuters:          https://feeds.reuters.com/reuters/topNews
+      #   NPR:              https://feeds.npr.org/1001/rss.xml
+      #   BBC US:           https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml
+      - NEWS_FEED_URL=https://feeds.npr.org/1001/rss.xml
+      - NEWS_FEED_COUNT=2
+      - NEWS_FETCH_HOURS=4        # Refresh news every N hours
+
+      # ── RSS Display ────────────────────────────────────────────
+      - RSS_TITLE=Lottery Tracker
+      - RSS_LINK=https://rss.timpotter.name/rss
+      - RSS_DESCRIPTION=Upcoming Powerball &amp; Mega Millions draws
+
+      # ── Security ───────────────────────────────────────────────
+      # Required ?api_key= param on /rss and /health.
+      # Unauthenticated requests silently return an empty, stale feed.
+      # Leave blank to disable (not recommended if exposed to internet).
+      - LOTTOAPI_KEY=$LOTTOAPI_KEY

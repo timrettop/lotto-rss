@@ -235,7 +235,10 @@ def check_email_for_tickets():
             for uid in ids:
                 try:
                     _, msg_data = mail.fetch(uid, "(RFC822)")
-                    msg = email.message_from_bytes(msg_data[0][1])
+                    if not msg_data or not msg_data[0]:
+                        log.warning(f"No data returned for message {uid}")
+                        continue
+                    msg = email.message_from_bytes(bytes(msg_data[0][1]))
                     body = extract_body(msg)
                     subject = decode_mime_header(msg.get("Subject", ""))
                     full_text = subject + " " + body

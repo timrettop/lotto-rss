@@ -1,7 +1,7 @@
 services:
-  lottery-rss:
+  lotto-rss:
     image: ghcr.io/timrettop/lotto-rss:latest
-    container_name: lottery-rss
+    container_name: lotto-rss
     restart: unless-stopped
     ports:
       - "${PORT:-8585}:${PORT:-8585}"
@@ -39,6 +39,9 @@ services:
       - NEWS_FEED_COUNT=2
       - NEWS_FETCH_HOURS=4        # Refresh news every N hours
 
+      # ── Email Check Schedule ───────────────────────────────────
+      - EMAIL_CHECK_HOURS=2       # Check inbox for ticket confirmations every N hours
+
       # ── RSS Display ────────────────────────────────────────────
       - RSS_TITLE=Lottery Tracker
       - RSS_LINK=https://rss.example.something/rss
@@ -49,3 +52,7 @@ services:
       # Unauthenticated requests silently return an empty, stale feed.
       # Leave blank to disable (not recommended if exposed to internet).
       - LOTTOAPI_KEY=$LOTTOAPI_KEY
+
+      # ── Logging ────────────────────────────────────────────────
+      # Set to DEBUG to see email parsing details. Default: INFO
+      - LOG_LEVEL=INFO

@@ -22,7 +22,8 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import pytz
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+_LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, _LOG_LEVEL, logging.INFO), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 class _SuppressHealthChecks(logging.Filter):
@@ -58,7 +59,7 @@ NEWS_CACHE       = DATA_DIR / "news.json"
 
 EMAIL_CHECK_HOURS = int(os.environ.get("EMAIL_CHECK_HOURS", "1"))  # How often to check for ticket emails
 
-API_KEY = os.environ.get("API_KEY", "")   # Required query param on /rss. Leave blank to disable.
+API_KEY = os.environ.get("LOTTOAPI_KEY", "")   # Required query param on /rss. Leave blank to disable.
 
 app = Flask(__name__)
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -318,6 +319,9 @@ def extract_dates(text: str) -> list:
 
     if not found:
         log.warning("No Draw Date and Time: lines found in email — no dates extracted")
+        # Log a snippet of the text to help diagnose format changes
+        snippet = text[:500].replace("\n", " ").replace("\r", "")
+        log.debug(f"Email text snippet: {snippet!r}")
 
     return list(found)
 

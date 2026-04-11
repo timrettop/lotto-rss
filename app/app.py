@@ -56,6 +56,8 @@ NEWS_FEED_COUNT  = int(os.environ.get("NEWS_FEED_COUNT", "2"))  # How many news 
 NEWS_FETCH_HOURS = int(os.environ.get("NEWS_FETCH_HOURS", "4"))    # How often to refresh news feed
 NEWS_CACHE       = DATA_DIR / "news.json"
 
+EMAIL_CHECK_HOURS = int(os.environ.get("EMAIL_CHECK_HOURS", "1"))  # How often to check for ticket emails
+
 API_KEY = os.environ.get("API_KEY", "")   # Required query param on /rss. Leave blank to disable.
 
 app = Flask(__name__)
@@ -139,9 +141,6 @@ def run_scheduled_fetch():
 
     if changed:
         save_cache(cache)
-
-    # Always check email regardless of lottery fetch
-    check_email_for_tickets()
 
 
 def load_cache() -> dict:
@@ -620,7 +619,14 @@ def start_scheduler():
     # Only fires API calls on draw-day / day-after schedule (~43 calls/month)
     scheduler.add_job(run_scheduled_fetch, "cron", hour=7, minute=15)
 
-    # Job 2: News feed — runs independently every NEWS_FETCH_HOURS hours
+    # Job 2: Email ticket check — runs every EMAIL_CHECK_HOURS hours
+    if IMAP_USER and IMAP_PASS:
+        scheduler.add_job(check_email_for_tickets, "interval", hours=EMAIL_CHECK_HOURS)
+        log.info(f"Email ticket check scheduled every {EMAIL_CHECK_HOURS}h")
+    else:
+        log.info("Email ticket check disabled (IMAP not configured)")
+
+    # Job 3: News feed — runs independently every NEWS_FETCH_HOURS hours
     # Completely separate from lottery schedule, no API limit concerns
     if NEWS_FEED_URL:
         scheduler.add_job(fetch_news_feed, "interval", hours=NEWS_FETCH_HOURS)
@@ -638,6 +644,9 @@ start_scheduler()
 if not JACKPOT_CACHE.exists():
     log.info("No lottery cache found — running initial fetch on startup")
     run_scheduled_fetch()
+if IMAP_USER and IMAP_PASS:
+    log.info("Running initial email ticket check on startup")
+    check_email_for_tickets()
 if NEWS_FEED_URL and not NEWS_CACHE.exists():
     log.info("No news cache found — fetching news feed on startup")
     fetch_news_feed()

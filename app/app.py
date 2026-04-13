@@ -232,6 +232,7 @@ def check_email_for_tickets():
         for game_key, search_query in searches:
             _, msg_ids = mail.search(None, search_query)
             ids = msg_ids[0].split() if msg_ids[0] else []
+            log.info(f"IMAP search '{search_query}' found {len(ids)} unread message(s)")  # Check syntax clean up later?
             for uid in ids:
                 try:
                     _, msg_data = mail.fetch(uid, "(RFC822)")
@@ -244,13 +245,16 @@ def check_email_for_tickets():
                     full_text = subject + " " + body
 
                     dates = extract_dates(full_text)
-                    for d in dates:
-                        if d not in tickets.get(game_key, []):
-                            tickets.setdefault(game_key, []).append(d)
-                            changed = True
-                            log.info(f"Recorded {game_key} ticket for {d}")
+                    if dates:
+                        for d in dates:
+                            if d not in tickets.get(game_key, []):
+                                tickets.setdefault(game_key, []).append(d)
+                                changed = True
+                                log.info(f"Recorded {game_key} ticket for {d}")
+                        mail.store(uid, "+FLAGS", "\\Seen")
+                    else:
+                        log.warning(f"Could not parse dates from email {uid} — leaving unread for retry")
 
-                    mail.store(uid, "+FLAGS", "\\Seen")
                 except Exception as e:
                     log.error(f"Error processing email {uid}: {e}")
 
@@ -276,6 +280,7 @@ def decode_mime_header(value: str) -> str:
 
 def extract_body(msg) -> str:
     body = ""
+    html_fallback = ""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain":
@@ -283,12 +288,22 @@ def extract_body(msg) -> str:
                     body += part.get_payload(decode=True).decode("utf-8", errors="ignore")
                 except Exception:
                     pass
+            elif part.get_content_type() == "text/html":
+                try:
+                    html = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                    html_fallback += re.sub(r'<[^>]+>', ' ', html)
+                except Exception:
+                    pass
     else:
         try:
-            body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+            raw = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+            if msg.get_content_type() == "text/html":
+                html_fallback = re.sub(r'<[^>]+>', ' ', raw)
+            else:
+                body = raw
         except Exception:
             pass
-    return body
+    return body or html_fallback
 
 
 def extract_dates(text: str) -> list:
@@ -586,6 +601,12 @@ def manual_fetch_news():
         count = 0
     return {"status": "done", "items_cached": count, "source": NEWS_FEED_URL}
 
+@app.route("/fetch/email", methods=["POST"])
+def manual_fetch_email():
+    """Manually trigger an email ticket check, independent of lottery data fetch."""
+    check_email_for_tickets()
+    tickets = load_tickets()
+    return {"status": "done", "tickets": tickets}
 
 @app.route("/ticket/<game>/<draw_date>", methods=["POST"])
 def add_ticket(game: str, draw_date: str):

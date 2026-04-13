@@ -1,5 +1,11 @@
 # Lottery RSS Feed
 
+My goal was to be able to share ticket purchase status to my Dakboard RSS reader, 
+so it would be inserted and rotated with other news headlines and visible on my Dakboard
+
+I will likely enhance this so that it could be more easily extendable via PRs to support 
+other lotteries where you have email confirmations of tickets if there's interest.
+
 Serves an RSS feed for DakBoard showing upcoming Powerball & Mega Millions draws,
 jackpot amounts, and whether you've purchased a ticket. Optionally mixes in news
 headlines from any RSS/Atom feed.

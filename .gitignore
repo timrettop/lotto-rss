@@ -2,6 +2,7 @@
 .env.local
 data/
 docker-compose.override.yml
+TODO.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
